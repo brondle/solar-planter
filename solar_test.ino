@@ -21,6 +21,7 @@ int LDR1 = A0;
 int LDR2 = A1;
 int LDR3 = A2;
 int LDR4 = A3;
+int motor_speed = 255;
 
 // Serial output refresh time
 const long SERIAL_REFRESH_TIME = 10;
@@ -71,20 +72,20 @@ void setup() {
 
 void loop() {
     // read a reference value from A0 and map it from 0 to 100
-  float real_value1 = 101;//analogRead(A0)/1024.0 * 100.0;
+  float real_value1 = analogRead(A0)/1024.0 * 100.0;
   
   // calculate the estimated value with Kalman Filter
   float estimated_value1 = simpleKalmanFilter1.updateEstimate(real_value1);
 
-  float real_value2 = random(0, 100);//analogRead(A1)/1024.0 * 100.0;
+  float real_value2 = analogRead(A1)/1024.0 * 100.0;
   
   float estimated_value2 = simpleKalmanFilter2.updateEstimate(real_value2);
   
-  float real_value3 = random(0, 100);//analogRead(A2)/1024.0 * 100.0;
+  float real_value3 = analogRead(A2)/1024.0 * 100.0;
   
   float estimated_value3 = simpleKalmanFilter3.updateEstimate(real_value3);
   
-  float real_value4 = random(0, 100);//analogRead(A3)/1024.0 * 100.0;
+  float real_value4 = analogRead(A3)/1024.0 * 100.0;
   
   float estimated_value4 = simpleKalmanFilter4.updateEstimate(real_value4);
 
@@ -107,10 +108,10 @@ void loop() {
    Serial.print("dist: ");
    Serial.println(dist);
   
-  myMotor->setSpeed(125);
-  myMotor2->setSpeed(125);
+  myMotor->setSpeed(motor_speed);
+  myMotor2->setSpeed(motor_speed);
 
-  if(estimated_value1 > estimated_value2 && estimated_value1 > estimated_value3 && estimated_value1 > estimated_value4 && dist > 50) {
+  if(estimated_value1 > estimated_value2 && estimated_value1 > estimated_value3 && estimated_value1 > estimated_value4 /*&& dist > 50 */) {
     myMotor->run(FORWARD);
     myMotor2->run(FORWARD);
   } else if ((estimated_value1 == (estimated_value2 + estimated_value3 + estimated_value4)/3)) {
