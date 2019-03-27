@@ -4,18 +4,30 @@ It won't work with v1.x motor shields! Only for the v2's with built in PWM
 control
 
 For use with the Adafruit Motor Shield v2 
----->	http://www.adafruit.com/products/1438
+---->  http://www.adafruit.com/products/1438
 */
+
+#define DISTANCE false
 
 #include <Wire.h>
 #include <Adafruit_MotorShield.h>
 #include <SimpleKalmanFilter.h>
-#include "SR04.h"
 #define TRIG_PIN 12
 #define ECHO_PIN 11
-SR04 sr04 = SR04(ECHO_PIN,TRIG_PIN);
+
+#if DISTANCE 
+#include "SR04.h"
+#endif
+
+
 int dist;
-// #include <Adafruit_SleepyDog.h>
+
+#if DISTANCE
+SR04 sr04 = SR04(ECHO_PIN,TRIG_PIN);
+#endif
+
+
+#include <Adafruit_SleepyDog.h>
 
 int LDR1 = A0;
 int LDR2 = A1;
@@ -26,6 +38,19 @@ int motor_speed = 255;
 // Serial output refresh time
 const long SERIAL_REFRESH_TIME = 10;
 long refresh_time;
+
+// Ease start vars
+enum state {
+  FWD,
+  LEFT,
+  RIGHT,
+  OFF
+};
+
+state current_direction = OFF;
+state prev_direction = OFF;
+int spd = 0;
+int max_spd = 175;
 
 SimpleKalmanFilter simpleKalmanFilter1(2, 2, 0.01);
 SimpleKalmanFilter simpleKalmanFilter2(2, 2, 0.01);
@@ -47,8 +72,7 @@ void setup() {
   //sleepydog setup
   Serial.begin(115200);
   while(!Serial); // wait for Arduino Serial Monitor (native USB boards)
-  Serial.println("Adafruit Watchdog Library Sleep Demo!");
-  Serial.println("Adafruit Motorshield v2 - DC Motor test!");
+
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH); // Show we're awake
 
@@ -104,48 +128,85 @@ void loop() {
     refresh_time = millis() + SERIAL_REFRESH_TIME;
   }
 
-   dist=sr04.Distance();
-   Serial.print("dist: ");
-   Serial.println(dist);
+  #if DISTANCE
+  dist=sr04.Distance();
+  Serial.print("dist: ");
+  Serial.println(dist);
+  #endif
+
   
   myMotor->setSpeed(motor_speed);
   myMotor2->setSpeed(motor_speed);
 
-  if(estimated_value1 > estimated_value2 && estimated_value1 > estimated_value3 && estimated_value1 > estimated_value4 /*&& dist > 50 */) {
-    myMotor->run(FORWARD);
-    myMotor2->run(FORWARD);
-  } else if ((estimated_value1 == (estimated_value2 + estimated_value3 + estimated_value4)/3)) {
+  //int combined_side_values = (estimated_value2 + estimated_value3)/2; //NVM; SEE BELOW
+  int moveThreshold = 10;
+
+  checkStates();
+
+  if(spd < max_spd){
+    if(millis()%5 == 0){
+      spd++;
+    }
+    myMotor->setSpeed(spd);
+    myMotor2->setSpeed(spd);
+  }
+
+  bool right_balanced = (estimated_value1 < estimated_value2+moveThreshold && estimated_value1 > estimated_value2-moveThreshold );
+  bool left_balanced = (estimated_value1 < estimated_value3+moveThreshold && estimated_value1 > estimated_value3-moveThreshold );
+  //If mostly balanced,
+  
+  if (right_balanced && left_balanced) {
+  //    Don't move
     myMotor->run(RELEASE);
     myMotor2->run(RELEASE); 
-  } else {
+    current_direction = OFF;
+  }
+//  If front greatest
+  else if(estimated_value1 > estimated_value2 && estimated_value1 > estimated_value3 /*&& dist > 50 */) {
+//    Go FWD
+    myMotor->run(FORWARD);
+    myMotor2->run(FORWARD);
+    current_direction=FWD;
+  }
+//  Directions
+  else {
     if (estimated_value2 > estimated_value3) {
       myMotor->run(FORWARD);
       myMotor2->run(BACKWARD);
+      current_direction = RIGHT;
     } else {
       myMotor->run(BACKWARD);
       myMotor2->run(FORWARD);
+      current_direction = LEFT;
     }
   }
 
   //delay(3000);
 
-// sleepydog stuff
-//  digitalWrite(LED_BUILTIN, LOW); // Show we're asleep
-//  int sleepMS = Watchdog.sleep(5000);
-//    // Code resumes here on wake.
+//// sleepydog stuff
+  digitalWrite(LED_BUILTIN, LOW); // Show we're asleep
+  int sleepMS = Watchdog.sleep(5000);
+////    // Code resumes here on wake.
+
+  digitalWrite(LED_BUILTIN, HIGH); // Show we're awake again
 //
-//  digitalWrite(LED_BUILTIN, HIGH); // Show we're awake again
+//  // Try to reattach USB connection on "native USB" boards (connection is
+//  // lost on sleep). Host will also need to reattach to the Serial monitor.
+//  // Seems not entirely reliable, hence the LED indicator fallback.
+  #ifdef USBCON
+////    USBDevice.attach();
+  #endif
+//
+  Serial.print("I'm awake now! I slept for ");
+  Serial.print(sleepMS, DEC);
+  Serial.println(" milliseconds.");
+  Serial.println();
+}
 
-  // Try to reattach USB connection on "native USB" boards (connection is
-  // lost on sleep). Host will also need to reattach to the Serial monitor.
-  // Seems not entirely reliable, hence the LED indicator fallback.
-//  #ifdef USBCON
-//    USBDevice.attach();
-//  #endif
 
-//  Serial.print("I'm awake now! I slept for ");
-//  Serial.print(sleepMS, DEC);
-//  Serial.println(" milliseconds.");
-//  Serial.println();
-//}
+void checkStates(){
+  if(current_direction != prev_direction){
+      spd = 0;
+      prev_direction = current_direction;
+  }
 }
