@@ -14,6 +14,7 @@ For use with the Adafruit Motor Shield v2
 #include <SimpleKalmanFilter.h>
 #define TRIG_PIN 12
 #define ECHO_PIN 11
+#define MOTOR_PIN 4
 
 #if DISTANCE 
 #include "SR04.h"
@@ -72,7 +73,8 @@ void setup() {
   //sleepydog setup
   Serial.begin(115200);
   while(!Serial); // wait for Arduino Serial Monitor (native USB boards)
-
+  pinMode(MOTOR_PIN, OUTPUT);
+  digitalWrite(MOTOR_PIN, HIGH);
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH); // Show we're awake
 
@@ -95,6 +97,7 @@ void setup() {
 }
 
 void loop() {
+  digitalWrite(MOTOR_PIN, HIGH);
     // read a reference value from A0 and map it from 0 to 100
   float real_value1 = analogRead(A0)/1024.0 * 100.0;
   
@@ -185,6 +188,7 @@ void loop() {
 
 //// sleepydog stuff
   digitalWrite(LED_BUILTIN, LOW); // Show we're asleep
+  digitalWrite(MOTOR_PIN, LOW);
   int sleepMS = Watchdog.sleep(5000);
 ////    // Code resumes here on wake.
 
